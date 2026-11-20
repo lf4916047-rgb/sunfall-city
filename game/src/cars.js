@@ -4,7 +4,7 @@
 import { S } from './state.js';
 import { CAR_TYPES, WORLD_W, WORLD_H, ROADS_V, ROADS_H, ROAD_HALF, LANE } from './config.js';
 import { clamp, dist, angleDiff, turnToward, pick } from './utils.js';
-import { collideBuildings, clampToWorld, CITY } from './city.js';
+import { collideBuildings, clampToWorld, CITY, nearestRoadCenter } from './city.js';
 import { sfx } from './audio.js';
 
 let carRngState = 987654321;
@@ -37,6 +37,7 @@ export function createCar(type, x, y, angle, opts = {}) {
     targetX: 0, targetY: 0,
     damaged: 0,
     smoke: 0,
+    ramCd: 0, // cooldown between ram hits on the player's car
   };
   S.nextCarId += 1;
   S.cars.push(car);
@@ -137,7 +138,54 @@ export function explodeCar(car) {
 export function updateTrafficCar(car, dt) {
   const t = CAR_TYPES[car.type];
   const ahead = carAheadBlocked(car);
-  const targetSpeed = ahead ? 0 : car.cruise;
+  // Intersection yield: if I am near a crossing and another car is already
+  // inside it and closer to its centre than I am, wait for it to clear.
+  let yieldStop = false;
+  for (const vx of ROADS_V) {
+    if (Math.abs(car.x - vx) > 130) continue;
+    for (const hy of ROADS_H) {
+      if (Math.abs(car.y - hy) > 130) continue;
+      const myD = Math.hypot(car.x - vx, car.y - hy);
+      for (const o of S.cars) {
+        // Parked cars count as "inside the crossing" forever — a parked car
+        // near a junction used to freeze every car approaching it, since the
+        // yield never cleared and the unstick timer never ran while stopped.
+        if (o === car || o.hp <= 0 || o.parked) continue;
+        const od = Math.hypot(o.x - vx, o.y - hy);
+        if (od < 75 && od < myD - 12) { yieldStop = true; break; }
+      }
+      if (yieldStop) break;
+    }
+    if (yieldStop) break;
+  }
+  const targetSpeed = (ahead || yieldStop) ? 0 : car.cruise;
+  // Unstick: a car that wants to move but has not moved for 4 s (wedged on a
+  // parked car, a corner, or another stalled car) re-routes onto the nearest
+  // road instead of blocking the street forever. The timer runs whenever the
+  // car is stopped, not only when its target speed is positive — a car
+  // queued behind a stalled car has target speed 0 and would otherwise
+  // wait forever for a queue that never moves.
+  if (Math.abs(car.speed) < 8) {
+    car.stuckTimer += dt;
+    if (car.stuckTimer > 4) {
+      const road = nearestRoadCenter(car.x, car.y);
+      car.stuckTimer = 0;
+      if (road.axis === 'v') {
+        car.roadAxis = 'v'; car.roadLine = road.line;
+        car.dir = carRand() < 0.5 ? 1 : -1;
+        car.x = road.line + (car.dir > 0 ? LANE : -LANE);
+        car.angle = car.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      } else {
+        car.roadAxis = 'h'; car.roadLine = road.line;
+        car.dir = carRand() < 0.5 ? 1 : -1;
+        car.y = road.line + (car.dir > 0 ? LANE : -LANE);
+        car.angle = car.dir > 0 ? 0 : Math.PI;
+      }
+      car.speed = car.cruise * 0.5;
+    }
+  } else {
+    car.stuckTimer = 0;
+  }
   car.speed += clamp(targetSpeed - car.speed, -t.brake * dt, t.accel * 0.6 * dt);
   // Desired heading: along the road in `dir`, in the right-hand lane.
   let wantAngle;
@@ -189,10 +237,14 @@ function chooseNewRoad(car) {
       const d = Math.abs(car.y - hy);
       if (d < bd) { bd = d; best = hy; }
     }
+    // The lane must match the direction: the lane was rolled independently
+    // of the direction, so half of all turns put a car in the oncoming lane
+    // and it met the traffic there nose-to-nose — a deadlock the unstick
+    // timer could only break by luck.
     car.roadAxis = 'h';
     car.roadLine = best;
-    car.y = best + (carRand() < 0.5 ? LANE : -LANE);
     car.dir = carRand() < 0.5 ? 1 : -1;
+    car.y = best + (car.dir > 0 ? LANE : -LANE);
     car.angle = car.dir > 0 ? 0 : Math.PI;
   } else {
     let best = ROADS_V[0], bd = Infinity;
@@ -202,8 +254,8 @@ function chooseNewRoad(car) {
     }
     car.roadAxis = 'v';
     car.roadLine = best;
-    car.x = best + (carRand() < 0.5 ? LANE : -LANE);
     car.dir = carRand() < 0.5 ? 1 : -1;
+    car.x = best + (car.dir > 0 ? LANE : -LANE);
     car.angle = car.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
   }
 }
@@ -231,16 +283,46 @@ export function resolveCarCollisions() {
       if (b.hp <= 0) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
       const d = Math.sqrt(dx * dx + dy * dy);
-      const minD = (carLength(a) + carLength(b)) / 2 * 0.85;
-      if (d > 0 && d < minD) {
-        const push = (minD - d) / 2;
+      // Oriented overlap: a car is 46 long but only 24 wide, so two cars in
+      // adjacent lanes (centres 22px apart — a parked car next to the traffic
+      // lane) pass cleanly, while a nose-to-tail or head-on overlap still
+      // collides. The old radial check treated every passing car as a crash:
+      // driving down a street cost the player ~9 hp per parked car passed.
+      const ca = Math.cos(a.angle), sa = Math.sin(a.angle);
+      const along = Math.abs(dx * ca + dy * sa);
+      const across = Math.abs(-dx * sa + dy * ca);
+      const minAlong = (carLength(a) + carLength(b)) / 2 * 0.85;
+      const minAcross = (carWidth(a) + carWidth(b)) / 2 * 0.85;
+      // The single-frame oriented test underestimates overlap when two cars
+      // meet at an angle (a diagonal graze can read "clear" in A's frame
+      // while the rectangles intersect). Centres closer than one car width
+      // always overlap, whatever the angle — catch that too.
+      const oriented = along < minAlong && across < minAcross;
+      const tooClose = d < (carWidth(a) + carWidth(b)) / 2 * 0.85;
+      if (d > 0 && (oriented || tooClose)) {
+        const push = oriented
+          ? (minAlong - along + minAcross - across) / 4
+          : ((carWidth(a) + carWidth(b)) / 2 * 0.85 - d) / 2;
         const nx = dx / d, ny = dy / d;
-        a.x -= nx * push; a.y -= ny * push;
-        b.x += nx * push; b.y += ny * push;
+        // A parked car is immovable: passing traffic slides past it instead
+        // of shoving it down the street (and off its mission marker).
+        if (!a.parked) { a.x -= nx * push; a.y -= ny * push; }
+        if (!b.parked) { b.x += nx * push; b.y += ny * push; }
+        if (a.parked && !b.parked) { b.x += nx * push; b.y += ny * push; }
+        if (b.parked && !a.parked) { a.x -= nx * push; a.y -= ny * push; }
         const rel = Math.abs(a.speed - b.speed);
-        if (rel > 140) {
-          damageCar(a, rel * 0.03, null);
-          damageCar(b, rel * 0.03, null);
+        // A police cruiser rear-ending the player's car must not also deal
+        // generic collision damage: the ram IS the collision damage, and
+        // the two together ground a getaway car down in seconds.
+        const playerPolice = (a.driver === 'player' && b.ai === 'police') || (b.driver === 'player' && a.ai === 'police');
+        if (rel > 140 && !playerPolice) {
+          // A parked car only takes collision damage from the player's own
+          // car. AI drivers (traffic, police cruisers mid-chase) ploughing
+          // through the street would otherwise chew every parked car — the
+          // mission cars included — down to a wreck before the player
+          // reaches them. The moving car still takes its own damage.
+          if (!(a.parked && b.driver !== 'player')) damageCar(a, rel * 0.03, null);
+          if (!(b.parked && a.driver !== 'player')) damageCar(b, rel * 0.03, null);
           const av = (a.speed + b.speed) / 2;
           a.speed = av; b.speed = av;
           S.shake = Math.max(S.shake, 2);
@@ -275,8 +357,12 @@ export function spawnTraffic(count) {
 
 export function spawnParked(count) {
   const spots = [...CITY.parkingSpots];
-  for (let i = 0; i < Math.min(count, spots.length); i += 1) {
-    const s = spots[i];
+  // Spread the parked cars evenly across the spot list (it is ordered by
+  // road, so taking the first N would cluster them all in the west and leave
+  // Harbor East — and the Harbor Bank — with no car to steal).
+  const n = Math.min(count, spots.length);
+  for (let i = 0; i < n; i += 1) {
+    const s = spots[Math.floor((i + 0.5) * spots.length / n)];
     createCar(s.type, s.x, s.y, s.angle, { ai: null, parked: true });
   }
 }

@@ -3,7 +3,7 @@
 import { S } from './state.js';
 import { WORLD_W, WORLD_H, ROADS_V, ROADS_H } from './config.js';
 import { clamp, dist, angleTo, turnToward, pick } from './utils.js';
-import { createCar, carLength } from './cars.js';
+import { createCar, carLength, damageCar } from './cars.js';
 import { collideBuildings, clampToWorld, nearestRoadCenter } from './city.js';
 import { sfx } from './audio.js';
 
@@ -135,13 +135,18 @@ export function updatePoliceCar(car, dt) {
   }
   // Line of sight: police within 700px and roughly facing the player see them.
   if (d < 700) S.lastSeenAt = S.time;
-  // Ram the player: if the player is in a car, damage it; if on foot, hurt them.
+  // Ram the player: a discrete hit with a cooldown, not a continuous grind —
+  // cruisers piling on at full rate destroyed a car in under two seconds,
+  // which made a 3-star getaway unwinnable in anything but the fastest car.
+  if (car.ramCd > 0) car.ramCd -= dt;
   if (d < 40) {
     if (p.inCar) {
-      const pc = p.inCar;
-      pc.hp -= 24 * dt;
-      S.shake = Math.max(S.shake, 2);
-      car.speed *= 0.85;
+      if (car.ramCd <= 0) {
+        damageCar(p.inCar, 8, car);
+        car.ramCd = 1.5;
+        S.shake = Math.max(S.shake, 2);
+        car.speed *= 0.85;
+      }
     } else if (p.invuln <= 0) {
       p.hp -= 40 * dt;
       p.invuln = 0.4;

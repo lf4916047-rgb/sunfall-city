@@ -65,9 +65,12 @@ export function generateCity() {
           });
         }
         CITY.buildings.push({
-          x, y, w, h, roof: PAL.buildingRoof[colorIdx], wall: PAL.buildingWall[colorIdx],
+          x, y, w, h, cellY0: b.y0, roof: PAL.buildingRoof[colorIdx], wall: PAL.buildingWall[colorIdx],
           tall: rng() < 0.3, // tall towers get a drawn height
           lit: rng() < 0.6,
+          // Striped awning over the door on the south face.
+          awning: rng() < 0.35,
+          awnX: 0.1 + rng() * 0.4, awnW: 0.3 + rng() * 0.25,
           vents,
           id: bi,
         });
@@ -75,6 +78,12 @@ export function generateCity() {
       }
     }
   }
+
+  // Landmark towers: the three largest buildings with room to grow north get
+  // a three-tier setback + beacon, so Downtown reads at a glance.
+  const cands = CITY.buildings.filter((b) => b.y - (b.cellY0 ?? 0) > 40)
+    .sort((a, b) => b.w * b.h - a.w * a.h).slice(0, 3);
+  for (const b of cands) b.landmark = true;
 
   // Landmarks (named places used by missions and the HUD).
   CITY.landmarks = {
@@ -108,6 +117,16 @@ export function generateCity() {
       kind: rng() < 0.6 ? 'crate' : 'hydrant',
       x: range(rng, b.x0 + 10, b.x1 - 10),
       y: range(rng, b.y0 + 10, b.y1 - 10),
+    });
+  }
+
+  // Sea shimmer: precomputed sparkle streaks on the west coast, animated by
+  // the render loop so the water reads as moving.
+  CITY.seaSparkles = [];
+  for (let i = 0; i < 48; i += 1) {
+    CITY.seaSparkles.push({
+      x: 8 + rng() * 200, y: rng() * WORLD_H,
+      len: 8 + rng() * 22, phase: rng() * Math.PI * 2, speed: 0.5 + rng() * 1.6,
     });
   }
 

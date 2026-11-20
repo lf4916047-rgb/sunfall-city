@@ -42,6 +42,15 @@ export function drawWorld(ctx) {
   drawParticles(ctx);
   drawFloaters(ctx);
   ctx.restore();
+  // Day phase: the light drifts slowly between golden hour and dusk on a
+  // four-minute cycle — warm while the sun is up, a cool violet as it sets.
+  // Kept faint (<=5%) so it never fights readability; the HUD is drawn after
+  // this and stays untinted.
+  const ph = Math.sin(S.time * Math.PI * 2 / 240);
+  ctx.fillStyle = ph >= 0
+    ? `rgba(255,150,60,${(ph * 0.05).toFixed(3)})`
+    : `rgba(70,50,140,${(-ph * 0.04).toFixed(3)})`;
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   // District name flash when the camera crosses into a new district is drawn by the HUD.
 }
 
@@ -65,6 +74,17 @@ function drawGround(ctx, left, top) {
   }
   ctx.fillStyle = PAL.sand;
   ctx.fillRect(220, -40, 100, WORLD_H + 80);
+  // Water shimmer: light streaks drifting on the sea, each pulsing on its
+  // own phase so the surface never looks frozen.
+  ctx.lineWidth = 2;
+  for (const s of CITY.seaSparkles) {
+    const a = 0.10 + 0.14 * (0.5 + 0.5 * Math.sin(S.time * s.speed + s.phase));
+    ctx.strokeStyle = `rgba(255,240,200,${a.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y + Math.sin(S.time * 0.7 + s.phase) * 3);
+    ctx.lineTo(s.x + s.len, s.y + Math.sin(S.time * 0.7 + s.phase) * 3);
+    ctx.stroke();
+  }
   // Block ground: grass tufts and speckles so the lots are not flat paper.
   for (const t of CITY.grassTufts) {
     ctx.fillStyle = 'rgba(90,120,70,0.5)';
@@ -162,6 +182,34 @@ function drawBuildings(ctx) {
       ctx.fillRect(b.x + b.w * 0.25, b.y - 16, b.w * 0.5, 16);
       ctx.fillStyle = b.roof;
       ctx.fillRect(b.x + b.w * 0.25, b.y - 16, b.w * 0.5, 10);
+    }
+    // Landmark towers: three-tier setback with a blinking beacon.
+    if (b.landmark) {
+      ctx.fillStyle = b.wall;
+      ctx.fillRect(b.x + b.w * 0.2, b.y - 28, b.w * 0.6, 28);
+      ctx.fillStyle = b.roof;
+      ctx.fillRect(b.x + b.w * 0.2, b.y - 28, b.w * 0.6, 22);
+      ctx.fillStyle = b.wall;
+      ctx.fillRect(b.x + b.w * 0.35, b.y - 40, b.w * 0.3, 14);
+      ctx.fillStyle = b.roof;
+      ctx.fillRect(b.x + b.w * 0.35, b.y - 40, b.w * 0.3, 10);
+      const blink = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(S.time * 3));
+      ctx.fillStyle = `rgba(255,60,60,${blink.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(b.x + b.w * 0.5, b.y - 42, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Striped awning over the door on the south face.
+    if (b.awning) {
+      const ax = b.x + b.w * b.awnX, aw = b.w * b.awnW, ay = b.y + b.h - 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(ax + 2, ay + 2, aw, 9);
+      for (let i = 0; i < 5; i += 1) {
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(240,235,220,0.9)' : 'rgba(180,60,50,0.9)';
+        ctx.fillRect(ax + (aw / 5) * i, ay, aw / 5, 8);
+      }
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(ax, ay + 8, aw, 2);
     }
   }
 }

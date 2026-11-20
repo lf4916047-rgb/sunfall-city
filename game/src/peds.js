@@ -90,6 +90,27 @@ export function updatePeds(dt) {
       p.fleeTimer -= dt;
       if (p.fleeTimer <= 0) p.state = 'walk';
     }
+    // Dodge a fast car bearing down on the crosswalk: step off its path
+    // instead of strolling into a hit-and-run (and another wanted star).
+    if (p.state !== 'down' && p.state !== 'flee') {
+      for (const c of S.cars) {
+        if (c.hp <= 0 || Math.abs(c.speed) < 150) continue;
+        const dx = p.x - c.x, dy = p.y - c.y;
+        const d = Math.hypot(dx, dy);
+        if (d > 190 || d < 1) continue;
+        const fx = Math.cos(c.angle), fy = Math.sin(c.angle);
+        const toward = (dx * fx + dy * fy) / d; // 1 = car heading straight at the ped
+        if (toward > 0.55) {
+          p.state = 'flee';
+          p.fleeTimer = 1.6;
+          // Step perpendicular to the car's path, away from the road centre.
+          const side = (dx * -fy + dy * fx) > 0 ? 1 : -1;
+          p.tx = p.x + -fy * 130 * side;
+          p.ty = p.y + fx * 130 * side;
+          break;
+        }
+      }
+    }
     const d = dist(p.x, p.y, p.tx, p.ty);
     if (d < 12) {
       // Pick a new stroll target: along the sidewalk of a random road.
