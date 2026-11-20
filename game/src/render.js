@@ -435,6 +435,8 @@ function panel(ctx, title, lines, prompt, accent) {
 
 export function drawTitle(ctx, hasSave) {
   // The world behind the title (a slow pan over the city) is drawn by the caller.
+  // The panel's title slot is deliberately left blank (the '' below): the
+  // story lines are the title here, and the empty slot keeps their spacing.
   const grad = ctx.createLinearGradient(0, 0, 0, VIEW_H);
   grad.addColorStop(0, 'rgba(20,8,20,0.25)');
   grad.addColorStop(1, 'rgba(20,8,20,0.72)');

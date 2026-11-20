@@ -87,15 +87,21 @@ export function updatePlayerCar(car, input, dt) {
   const hitWall = collideBuildings(car, 20);
   clampToWorld(car, 24);
   if (hitWall || car.x !== nx || car.y !== ny) {
-    // Scrape: lose speed, take a little damage, spark.
-    if (Math.abs(car.speed) > 120) {
-      damageCar(car, Math.abs(car.speed) * 0.02, null);
+    // Scrape: lose speed, take a little damage, spark. Kept light (1.2% of
+    // speed, only above 160) — at the old 2% a getaway car bled out just from
+    // brushing building corners while threading the safehouse gap.
+    if (Math.abs(car.speed) > 160) {
+      damageCar(car, Math.abs(car.speed) * 0.012, null);
       S.shake = Math.max(S.shake, 3);
       sfx.crash();
     }
     car.speed *= 0.55;
     car.x = ox + (car.x - ox) * 0.2;
     car.y = oy + (car.y - oy) * 0.2;
+  }
+  // Tyres squeal on a hard turn at speed or a handbrake slide.
+  if ((handbrake && Math.abs(car.speed) > 200) || (Math.abs(steer) > 0.7 && Math.abs(car.speed) > 280)) {
+    sfx.skid();
   }
   S.stats.distance += Math.abs(car.speed) * dt;
   if (car.hp < car.maxHp * 0.4) car.smoke = 1;

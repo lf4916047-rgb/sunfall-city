@@ -85,6 +85,9 @@ function drawObjective(ctx) {
 }
 
 function drawMinimap(ctx) {
+  // The world (3400x2600) and the minimap box (210x160) are not the same
+  // aspect, so sx and sy are kept separate — one uniform scale would leave
+  // the map short on one axis instead of filling the box.
   const sx = MM_W / WORLD_W, sy = MM_H / WORLD_H;
   ctx.fillStyle = 'rgba(10,12,18,0.78)';
   ctx.fillRect(MM_X - 4, MM_Y - 4, MM_W + 8, MM_H + 8);

@@ -7,6 +7,9 @@
 // explore on foot and by car, with traffic, pedestrians, stealable cars, a 1–5 star wanted
 // level with pursuing police, four story missions for the fixer Marisol Vega, mouse-aim
 // combat, a HUD with a live minimap, a start screen, pause and a localStorage save.
+// Phase 3 (2026-11-20): M4 getaway rebalanced (a red Comet GT waits by the bank,
+// softer police rams, lighter wall scrapes), audio layered (skid / reload / city hum),
+// and every game file given a final review pass.
 export const GAME_TITLE = 'Sunfall City';
 export const GAME_TAGLINE = 'An open-world crime story at golden hour';
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.

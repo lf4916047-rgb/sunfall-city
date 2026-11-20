@@ -13,6 +13,10 @@ export const ACT_MUTE = 32;
 export const ACT_MELEE = 64;
 
 const KEY_ACTIONS = {
+  // Space does double duty: ACT_CONFIRM on the title screens and the
+  // handbrake while driving. The two never collide — handleActions() ignores
+  // one-shot presses while the screen is 'playing', and step() reads the
+  // held Space key directly for the handbrake.
   Space: ACT_CONFIRM, Enter: ACT_CONFIRM,
   KeyP: ACT_PAUSE, Escape: ACT_PAUSE,
   KeyE: ACT_ENTER,

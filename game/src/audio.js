@@ -9,6 +9,8 @@ let engineGain = null;
 let sirenOsc = null;
 let sirenGain = null;
 let sirenLfo = null;
+let ambientGain = null;
+let lastSkid = -1;
 let started = false;
 
 export function initAudio() {
@@ -48,6 +50,29 @@ export function initAudio() {
     sirenGain.connect(master);
     sirenOsc.start();
     sirenLfo.start();
+    // Ambient city bed: looped brown noise through a low-pass, barely there —
+    // the street hum under the engine and sirens. Gain is driven per-frame.
+    const ambLen = ctx.sampleRate * 2;
+    const ambBuf = ctx.createBuffer(1, ambLen, ctx.sampleRate);
+    const ad = ambBuf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < ambLen; i += 1) {
+      const w = Math.random() * 2 - 1;
+      last = (last + 0.02 * w) / 1.02;
+      ad[i] = last * 3;
+    }
+    const ambSrc = ctx.createBufferSource();
+    ambSrc.buffer = ambBuf;
+    ambSrc.loop = true;
+    const ambFilter = ctx.createBiquadFilter();
+    ambFilter.type = 'lowpass';
+    ambFilter.frequency.value = 240;
+    ambientGain = ctx.createGain();
+    ambientGain.gain.value = 0;
+    ambSrc.connect(ambFilter);
+    ambFilter.connect(ambientGain);
+    ambientGain.connect(master);
+    ambSrc.start();
     started = true;
   } catch {
     // Audio is a nice-to-have; the game plays fine silent.
@@ -96,6 +121,28 @@ function noiseBurst(dur, vol, filterFreq) {
   src.start(t);
 }
 
+// Band-passed noise burst: a tyre squeal is a narrow band of noise, not a thud.
+function noiseBand(dur, vol, freq, q) {
+  if (!ctx || !started) return;
+  const t = ctx.currentTime;
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const f = ctx.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = freq;
+  f.Q.value = q;
+  const g = ctx.createGain();
+  g.gain.value = vol;
+  src.connect(f);
+  f.connect(g);
+  g.connect(master);
+  src.start(t);
+}
+
 export const sfx = {
   shoot() { noiseBurst(0.09, 0.5, 2600); blip(220, 0.07, 'square', 0.18, 60); },
   enemyShoot() { noiseBurst(0.08, 0.28, 1800); },
@@ -111,6 +158,17 @@ export const sfx = {
   },
   crash() { noiseBurst(0.22, 0.5, 500); },
   door() { blip(180, 0.08, 'square', 0.2, 120); },
+  // Skid: throttled inside, so the driving loop can call it every frame while
+  // sliding without stacking a squeal per frame.
+  skid() {
+    if (!ctx || !started) return;
+    const now = ctx.currentTime;
+    if (now - lastSkid < 0.18) return;
+    lastSkid = now;
+    noiseBand(0.16, 0.22, 1400, 1.2);
+  },
+  // Reload: two mechanical clicks — mag out, mag in.
+  reload() { blip(1500, 0.04, 'square', 0.16); setTimeout(() => blip(950, 0.05, 'square', 0.16), 90); },
 };
 
 // Called every frame: engine pitch from the player's car speed, siren from police heat.
@@ -125,6 +183,10 @@ export function updateAudioLoops() {
   const nearest = nearestPoliceDist();
   const sirenOn = S.wanted > 0 && nearest < 900;
   sirenGain.gain.setTargetAtTime(sirenOn ? 0.045 : 0, ctx.currentTime, 0.3);
+  // The city hum is only audible while playing — silent on the title screen.
+  if (ambientGain) {
+    ambientGain.gain.setTargetAtTime(S.screen === 'playing' ? 0.03 : 0, ctx.currentTime, 0.5);
+  }
 }
 
 function nearestPoliceDist() {

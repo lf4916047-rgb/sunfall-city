@@ -85,14 +85,17 @@ export function generateCity() {
     .sort((a, b) => b.w * b.h - a.w * a.h).slice(0, 3);
   for (const b of cands) b.landmark = true;
 
-  // Landmarks (named places used by missions and the HUD).
+  // Landmarks (named places used by missions and the HUD). They are written
+  // in world coords and MAY land inside a generated building — setupWorld()
+  // in main.js nudges each one +30px east until it is clear, so mission code
+  // must only read CITY.landmarks after setupWorld has run.
   CITY.landmarks = {
     marina: { name: 'Marina', x: 250, y: 450 },
     motel: { name: 'Sunset Motel', x: 2650, y: 2100 },
     garage: { name: "Rico's Garage", x: 1850, y: 1650 },
     pier: { name: 'Old Pier', x: 300, y: 1950 },
     bank: { name: 'Harbor Bank', x: 2650, y: 700 },
-    safehouse: { name: "Marisol's", x: 800, y: 2200 },
+    safehouse: { name: "Marisol's", x: 800, y: 2030 }, // the door faces Sunset Strip road: the old spot (800,2200) sat in a 77px gap between two buildings, so the getaway ended in a slow, ram-filled squeeze instead of a drive home
     hospital: { name: 'St. Aurelia Hospital', x: 1400, y: 700 },
     police: { name: 'Central Precinct', x: 2000, y: 1200 },
   };

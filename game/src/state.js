@@ -11,7 +11,9 @@ export const S = {
   wantedHeat: 0, // 0..1, builds with crimes, decays when clean
   lastCrimeAt: -999,
   lastSeenAt: -999, // last time police had line of sight
-  player: null,
+  player: null, // while driving, the player's x/y/angle mirror the car (main.js
+  // step() syncs them every frame), so the camera, minimap and police all
+  // read one position whether Rook is on foot or behind the wheel
   cars: [],
   peds: [],
   cops: [], // foot officers

@@ -4,6 +4,7 @@ import { S } from './state.js';
 import { WEAPONS } from './config.js';
 import { clamp, dist, angleTo, turnToward, pick } from './utils.js';
 import { collideBuildings, clampToWorld, inBuilding } from './city.js';
+import { damageCar } from './cars.js';
 import { scarePeds } from './peds.js';
 import { addWanted } from './police.js';
 import { sfx } from './audio.js';
@@ -164,7 +165,10 @@ export function updateBullets(dt) {
     }
     if (b.from !== 'player' && p && p.inCar && dist(b.x, b.y, p.inCar.x, p.inCar.y) < 24) {
       b.life = 0;
-      p.inCar.hp -= b.damage * 0.4;
+      // Route through damageCar, not a raw subtraction: a killing shot must
+      // trigger the explosion (and the 25 hp kick to the driver), exactly as
+      // a ram or a wall scrape would.
+      damageCar(p.inCar, b.damage * 0.4, null);
       spark(b.x, b.y, '#ffd21e');
       continue;
     }
@@ -209,10 +213,9 @@ export function updateBullets(dt) {
           const along = Math.abs(dx * Math.cos(car.angle) + dy * Math.sin(car.angle));
           const across = Math.abs(-dx * Math.sin(car.angle) + dy * Math.cos(car.angle));
           if (along < 26 && across < 15) {
-            car.hp -= b.damage * 0.5;
+            damageCar(car, b.damage * 0.5, null);
             b.life = 0; consumed = true;
             spark(b.x, b.y, '#ffd21e');
-            if (car.hp <= 0) { /* explodeCar handled in damageCar path */ }
             break;
           }
         }

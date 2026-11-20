@@ -3,6 +3,7 @@
 // each with stages, a timer where the story needs one, and a cash reward.
 import { S } from './state.js';
 import { dist } from './utils.js';
+import { ROADS_H } from './config.js';
 import { CITY } from './city.js';
 import { createCar, nearestCar } from './cars.js';
 import { spawnThugs } from './combat.js';
@@ -83,6 +84,13 @@ export function startMission() {
   } else if (S.missionIdx === 3) {
     m.marker = { x: CITY.landmarks.bank.x, y: CITY.landmarks.bank.y, label: 'BRIEFCASE' };
     S.objective = def.objective0;
+    // The getaway car: a red Comet GT parked on the Harbor Road just south of
+    // the bank, so the final job does not hinge on whatever random parked car
+    // happens to be nearby — a slow sedan can never outrun three cruisers.
+    // (The bank landmark is nudged out of its building by setupWorld, so the
+    // car is placed off the first horizontal road below the nudged bank.)
+    const roadY = ROADS_H.find((y) => y > CITY.landmarks.bank.y) ?? ROADS_H[1];
+    m.getawayCar = createCar('sports', CITY.landmarks.bank.x, roadY - 42, 0, { ai: null, parked: true, color: '#c22a2a' });
   }
   sfx.click();
   return true;
@@ -205,7 +213,7 @@ export function updateMissions(dt) {
         S.wanted = Math.max(S.wanted, 3);
         S.wantedHeat = 1;
         S.lastCrimeAt = S.time;
-        showDialogue('Marisol', '"Briefcase is hot. Every cruiser in Sunfall is coming. Drive!"', 4);
+        showDialogue('Marisol', '"Briefcase is hot. Every cruiser in Sunfall is coming. The red Comet on Harbor Road is yours — drive!"', 4);
         sfx.pickup();
       }
     } else if (reach(p, CITY.landmarks.safehouse.x, CITY.landmarks.safehouse.y, 60)) {

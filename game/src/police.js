@@ -138,12 +138,14 @@ export function updatePoliceCar(car, dt) {
   // Ram the player: a discrete hit with a cooldown, not a continuous grind —
   // cruisers piling on at full rate destroyed a car in under two seconds,
   // which made a 3-star getaway unwinnable in anything but the fastest car.
+  // 6 damage per cruiser every 2.2 s still hurts (three cruisers in contact
+  // is ~8/s), but a fast car that keeps moving can now survive the run home.
   if (car.ramCd > 0) car.ramCd -= dt;
   if (d < 40) {
     if (p.inCar) {
       if (car.ramCd <= 0) {
-        damageCar(p.inCar, 8, car);
-        car.ramCd = 1.5;
+        damageCar(p.inCar, 6, car);
+        car.ramCd = 2.2;
         S.shake = Math.max(S.shake, 2);
         car.speed *= 0.85;
       }

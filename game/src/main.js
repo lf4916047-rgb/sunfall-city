@@ -104,7 +104,7 @@ function startReload() {
   const p = S.player;
   if (p.reserve <= 0 || p.ammo >= WEAPONS.pistol.mag || p.reloading > 0) return;
   p.reloading = 1.2;
-  sfx.click();
+  sfx.reload();
 }
 
 // ---- entering / exiting cars ---------------------------------------------------

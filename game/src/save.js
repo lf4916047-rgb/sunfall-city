@@ -40,6 +40,9 @@ export function hasSave() {
 }
 
 export function applySave(data) {
+  // A save made mid-drive reloads the player ON FOOT at the saved spot: the
+  // car itself is never saved, and setupWorld() respawns fresh traffic, so
+  // there is no stolen car to restore — the player simply walks from there.
   S.money = data.money;
   S.missionIdx = Math.min(4, data.missionIdx || 0);
   S.stats.missionsDone = data.missionsDone || 0;

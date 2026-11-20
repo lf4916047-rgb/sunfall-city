@@ -132,6 +132,8 @@ export function updatePeds(dt) {
     p.y += Math.sin(p.angle) * speed * dt;
     const hitWall = collideBuildings(p, 10);
     clampToWorld(p, 16);
+    // Wedged on a building corner: retarget to where the ped just stood, so
+    // it turns around instead of grinding against the same wall forever.
     if (hitWall) { p.tx = ox; p.ty = oy; }
     // A fast car hitting a ped knocks them down (handled in main via car-ped check too).
   }

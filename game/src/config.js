@@ -44,7 +44,9 @@ export const ROADS_H = [450, 950, 1450, 1950];
 export const ROAD_HALF = 45;
 export const LANE = 20; // lane offset from road centre
 
-// Vehicle types. speed in px/s, accel px/s^2.
+// Vehicle types. speed in px/s, accel px/s^2. The chase balance hangs on the
+// cruiser's 470: it sits between the sedan's 380 and the Comet GT's 520, so a
+// getaway in a fast car can outrun the law and a getaway in a slow one cannot.
 export const CAR_TYPES = {
   sedan:   { name: 'Sedan',    topSpeed: 380, accel: 260, brake: 420, grip: 2.6, hp: 100, colors: ['#7a8a9a', '#5a6b7a', '#9a7a5a', '#4a7a5a'] },
   taxi:    { name: 'Taxi',     topSpeed: 400, accel: 280, brake: 440, grip: 2.7, hp: 100, colors: ['#f0b81e'] },

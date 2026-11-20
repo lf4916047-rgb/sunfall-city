@@ -36,7 +36,9 @@ export function circleVsRect(cx, cy, r, rect) {
   const d2 = dx * dx + dy * dy;
   if (d2 >= r * r) return null;
   if (d2 === 0) {
-    // Centre inside the box: push out along the smallest penetration axis.
+    // Centre inside the box: without this branch the push-out math divides
+    // by zero (dx = dy = 0), so a circle whose centre enters a building
+    // would never resolve. Push out along the smallest penetration axis.
     const left = cx - rect.x, right = rect.x + rect.w - cx;
     const top = cy - rect.y, bottom = rect.y + rect.h - cy;
     const m = Math.min(left, right, top, bottom);
